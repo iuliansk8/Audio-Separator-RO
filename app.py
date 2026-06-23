@@ -106,7 +106,8 @@ if cale_audio_intrare:
         b64_tobe = get_audio_base64(cale_tobe)
         b64_altele = get_audio_base64(cale_altele)
 
-        mixer_html = f"""
+        # Șablonul HTML curat, fără f-string confuz pentru Python
+        html_template = '''
         <div style="background-color: #131926; padding: 20px; border-radius: 12px; border: 1px solid #1e293b; max-width: 500px; margin: 0 auto; font-family: sans-serif; color: white;">
             <div style="text-align: center; margin-bottom: 25px;">
                 <button id="btn-play" style="background-color: #10b981; color: white; border: none; padding: 12px 28px; font-weight: bold; font-size: 1.1rem; border-radius: 50px; cursor: pointer; margin-right: 10px;">▶ PLAY ALL</button>
@@ -135,42 +136,42 @@ if cale_audio_intrare:
         <script>
             let audioCtx = null;
             let sources = [];
-            let gainNodes = {{ "voce": null, "bas": null, "tobe": null, "altele": null }};
-            let audioBuffers = {{}};
+            let gainNodes = { "voce": null, "bas": null, "tobe": null, "altele": null };
+            let audioBuffers = {};
             let isPlaying = false;
             let startTime = 0;
             let pauseTime = 0;
 
-            const b64Data = {{
-                "voce": "{b64_voce}",
-                "bas": "{b64_bas}",
-                "tobe": "{b64_tobe}",
-                "altele": "{b64_altele}"
-            }};
+            const b64Data = {
+                "voce": "{VOICE_DATA}",
+                "bas": "{BASS_DATA}",
+                "tobe": "{DRUMS_DATA}",
+                "altele": "{OTHER_DATA}"
+            };
 
-            function b64ToArray(base64) {{
+            function b64ToArray(base64) {
                 let bin = window.atob(base64);
                 let bytes = new Uint8Array(bin.length);
                 for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
                 return bytes.buffer;
-            }}
+            }
 
-            async function initAudio() {{
-                if (!audioCtx) {{
+            async function initAudio() {
+                if (!audioCtx) {
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                     document.getElementById('status').innerText = "Se încarcă muzica în consolă...";
                     let keys = ['voce', 'bas', 'tobe', 'altele'];
-                    for(let k of keys) {{
+                    for(let k of keys) {
                         audioBuffers[k] = await audioCtx.decodeAudioData(b64ToArray(b64Data[k]));
-                    }}
+                    }
                     document.getElementById('status').innerText = "Mixer activat!";
-                }}
-            }}
+                }
+            }
 
-            function playTracks(offset) {{
+            function playTracks(offset) {
                 sources = [];
                 let keys = ['voce', 'bas', 'tobe', 'altele'];
-                keys.forEach(k => {{
+                keys.forEach(k => {
                     let src = audioCtx.createBufferSource();
                     src.buffer = audioBuffers[k];
                     let gain = audioCtx.createGain();
@@ -180,36 +181,43 @@ if cale_audio_intrare:
                     gainNodes[k] = gain;
                     sources.push(src);
                     src.start(0, offset);
-                }});
+                });
                 startTime = audioCtx.currentTime - offset;
                 isPlaying = true;
                 document.getElementById('status').innerText = "🎵 Muzica se aude sincronizat!";
-            }}
+            }
 
-            document.getElementById('btn-play').addEventListener('click', async () => {{
+            document.getElementById('btn-play').addEventListener('click', async () => {
                 await initAudio();
                 if (audioCtx.state === 'suspended') await audioCtx.resume();
                 if (isPlaying) return;
                 playTracks(pauseTime);
-            }});
+            });
 
-            document.getElementById('btn-pause').addEventListener('click', () => {{
+            document.getElementById('btn-pause').addEventListener('click', () => {
                 if (!isPlaying) return;
                 pauseTime = audioCtx.currentTime - startTime;
-                sources.forEach(s => {{ try{{s.stop();}}catch(e){{}} }});
+                sources.forEach(s => { try{s.stop();}catch(e){} });
                 isPlaying = false;
                 document.getElementById('status').innerText = "⏸️ Pauză";
-            }});
+            });
 
-            ['voce', 'bas', 'tobe', 'altele'].forEach(k => {{
-                document.getElementById('vol-' + k).addEventListener('input', (e) => {{
+            ['voce', 'bas', 'tobe', 'altele'].forEach(k => {
+                document.getElementById('vol-' + k).addEventListener('input', (e) => {
                     let v = e.target.value;
                     document.getElementById('val-' + k).innerText = Math.round(v * 100) + '%';
                     if (gainNodes[k]) gainNodes[k].gain.setValueAtTime(v, audioCtx.currentTime);
-                }});
-            }});
+                });
+            });
         </script>
-        """
+        '''
+        
+        # Înlocuim marcajele cu datele noastre în mod sigur
+        mixer_html = html_template.replace("{VOICE_DATA}", b64_voce)\
+                                  .replace("{BASS_DATA}", b64_bas)\
+                                  .replace("{DRUMS_DATA}", b64_tobe)\
+                                  .replace("{OTHER_DATA}", b64_altele)
+                                  
         st.components.v1.html(mixer_html, height=420)
 
         st.write("---")
