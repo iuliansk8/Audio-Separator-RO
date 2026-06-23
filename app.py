@@ -1,27 +1,10 @@
 import os
 import streamlit as st
 import soundfile as sf
-import torch
 import yt_dlp
-from demucs import separate
+from audio_separator.separator import Separator
 
-import demucs.separate
-import torchaudio
-
-def _incarcare_audio_simpla(track, channels=2, samplerate=44100):
-    data, sr = sf.read(str(track), always_2d=True)
-    tensor = torch.tensor(data.T, dtype=torch.float32)
-    return tensor
-
-def _salvare_audio_simpla(filepath, src, sample_rate, channels_first=True, bits_per_sample=16, format=None, encoding=None):
-    data = src.cpu().transpose(0, 1).numpy() if channels_first else src.cpu().numpy()
-    sf.write(str(filepath), data, sample_rate)
-
-demucs.separate.load_track = lambda track, *args, **kwargs: _incarcare_audio_simpla(track)
-torchaudio.load = lambda track, *args, **kwargs: (_incarcare_audio_simpla(track), 44100)
-torchaudio.save = _salvare_audio_simpla
-
-st.set_page_config(page_title="AI Audio Separator", page_icon="🎵", layout="centered")
+st.set_page_config(page_title="AI Audio Separator Pro", page_icon="🎛️", layout="centered")
 
 st.markdown("""
     <style>
@@ -35,22 +18,25 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🎵 AI Audio Separator")
-st.markdown("<p class='subtitle'>Descarcă de pe YouTube sau încarcă piese, apoi separă instrumentele!</p>", unsafe_allow_html=True)
+st.title("🎛️ AI Audio Separator Pro")
+st.markdown("<p class='subtitle'>Sistem ultra-stabil bazat pe modele ONNX (UVR)</p>", unsafe_allow_html=True)
 
 metoda = st.radio("Alege sursa audio:", ("Introduce un link de YouTube", "Încarcă fișier propriu (MP3/WAV)"))
 
-cale_audio_intrare = None
+cale_audio_intrare = "temp_input.wav"
 
-# IZOLARE COMPLETĂ REPREZENTÂND SURSA SELECTATĂ
+# Resetăm fișierele vechi la pornire proaspătă
+if 'procesat' not in st.session_state:
+    st.session_state.procesat = False
+
 if metoda == "Introduce un link de YouTube":
     youtube_url = st.text_input("Lipește link-ul de YouTube aici 👇", placeholder="https://www.youtube.com/watch?v=...")
     if youtube_url:
         if st.button("📥 Preia melodia de pe YouTube"):
             with st.spinner("Se descarcă de pe YouTube..."):
                 try:
-                    if os.path.exists("temp_input.wav"):
-                        os.remove("temp_input.wav")
+                    if os.path.exists(cale_audio_intrare):
+                        os.remove(cale_audio_intrare)
                     ydl_opts = {
                         'format': 'bestaudio/best',
                         'outtmpl': 'temp_input.%(ext)s',
@@ -64,62 +50,60 @@ if metoda == "Introduce un link de YouTube":
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         ydl.download([youtube_url])
                     
-                    for f in os.listdir('.'):
-                        if f.startswith('temp_input') and f.endswith('.wav'):
-                            st.success("✅ Melodia a fost preluată!")
-                            break
+                    if os.path.exists("temp_input.wav"):
+                        st.success("✅ Melodia a fost preluată! Acum poți apăsa butonul de mai jos.")
+                        st.session_state.procesat = False
                 except Exception as e:
                     st.error(f"Eroare YouTube: {e}")
 
-    if os.path.exists("temp_input.wav"):
-        cale_audio_intrare = "temp_input.wav"
-
 else:
-    # Dacă este selectat fișier local, ignorăm total restul verificărilor de YouTube
     uploaded_file = st.file_uploader("Trage aici fișierul audio (MP3, WAV)", type=["mp3", "wav"])
     if uploaded_file is not None:
-        if not os.path.exists("temp_input.wav"):
-            input_filename = "temp_input.wav"
+        if not os.path.exists(cale_audio_intrare):
             data, samplerate = sf.read(uploaded_file)
-            sf.write(input_filename, data, samplerate)
-        cale_audio_intrare = "temp_input.wav"
+            sf.write(cale_audio_intrare, data, samplerate)
+            st.session_state.procesat = False
 
-# Butonul rulează doar dacă fișierul de intrare este pregătit corect
-if cale_audio_intrare and os.path.exists(cale_audio_intrare):
+# Procesarea efectivă
+if os.path.exists(cale_audio_intrare):
     if st.button("🚀 Lansează Separarea AI"):
-        with st.spinner("Inteligența Artificială izolează pistele..."):
+        with st.spinner("Se încarcă modelul ONNX ultra-light..."):
             try:
-                separate.main(["-n", "mdx_extra_q", cale_audio_intrare])
+                # Curățăm piese vechi ca să nu se încurce
+                for f in os.listdir('.'):
+                    if f.startswith("Vocals_") or f.startswith("Instrumental_"):
+                        os.remove(f)
+
+                # Folosește modelul special decuplat care separă perfect Vocea de Instrumental fără să consume RAM
+                separator = Separator()
+                separator.load_model(model_filename='Kim_Vocal_2.onnx')
+                
+                st.write("Separare în curs...")
+                output_files = separator.separate(cale_audio_intrare)
+                
+                # Redenumire pentru acces ușor
+                for file in output_files:
+                    if "Vocals" in file:
+                        os.rename(file, "vocals_output.wav")
+                    elif "Instrumental" in file:
+                        os.rename(file, "instrumental_output.wav")
+                
+                st.session_state.procesat = True
                 st.success("🎉 Separare completă!")
             except Exception as e:
-                st.error("Eroare la procesarea AI.")
-                st.exception(e)
+                st.error(f"Eroare la procesare: {e}")
 
-    cale_voce = "separated/mdx_extra_q/temp_input/vocals.wav"
-    cale_bas = "separated/mdx_extra_q/temp_input/bass.wav"
-    cale_tobe = "separated/mdx_extra_q/temp_input/drums.wav"
-    cale_altele = "separated/mdx_extra_q/temp_input/other.wav"
-
-    if os.path.exists(cale_voce):
+    # Afișare rezultate separate (Voce și Instrumentalul complet)
+    if st.session_state.procesat and os.path.exists("vocals_output.wav") and os.path.exists("instrumental_output.wav"):
         st.write("---")
-        st.subheader("🎛️ Canale Audio Separate")
+        st.subheader("🎛️ Rezultate Obținute")
 
-        st.markdown('<div class="track-box"><div class="track-title">🎤 Voce (Vocals)</div></div>', unsafe_allow_html=True)
-        st.audio(cale_voce)
-        with open(cale_voce, "rb") as f:
+        st.markdown('<div class="track-box"><div class="track-title">🎤 Voce (Vocals Only)</div></div>', unsafe_allow_html=True)
+        st.audio("vocals_output.wav")
+        with open("vocals_output.wav", "rb") as f:
             st.download_button("⬇️ Descarcă Vocea", f, "voce.wav", mime="audio/wav")
 
-        st.markdown('<div class="track-box"><div class="track-title">🎸 Bass</div></div>', unsafe_allow_html=True)
-        st.audio(cale_bas)
-        with open(cale_bas, "rb") as f:
-            st.download_button("⬇️ Descarcă Bass-ul", f, "bass.wav", mime="audio/wav")
-
-        st.markdown('<div class="track-box"><div class="track-title">🥁 Tobă (Drums)</div></div>', unsafe_allow_html=True)
-        st.audio(cale_tobe)
-        with open(cale_tobe, "rb") as f:
-            st.download_button("⬇️ Descarcă Tobele", f, "tobe.wav", mime="audio/wav")
-
-        st.markdown('<div class="track-box"><div class="track-title">🎹 Instrumente (Melodie/Other)</div></div>', unsafe_allow_html=True)
-        st.audio(cale_altele)
-        with open(cale_altele, "rb") as f:
-            st.download_button("⬇️ Descarcă Instrumentele", f, "instrumente.wav", mime="audio/wav")
+        st.markdown('<div class="track-box"><div class="track-title">🎸 Instrumental Complet (Tobe + Bas + Melodie)</div></div>', unsafe_allow_html=True)
+        st.audio("instrumental_output.wav")
+        with open("instrumental_output.wav", "rb") as f:
+            st.download_button("⬇️ Descarcă Instrumentalul", f, "instrumental.wav", mime="audio/wav")
