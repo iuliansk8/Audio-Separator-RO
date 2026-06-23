@@ -7,7 +7,7 @@ from demucs import separate
 import demucs.separate
 import torchaudio
 
-# Optimizări pentru a rula pe servere cu memorie puțină
+# Optimizări majore pentru citirea audio nativă (fără consum de RAM suplimentar)
 def _incarcare_audio_simpla(track, channels=2, samplerate=44100):
     data, sr = sf.read(str(track), always_2d=True)
     tensor = torch.tensor(data.T, dtype=torch.float32)
@@ -35,8 +35,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🎵 AI Audio Separator - Pro Mixer")
-st.markdown("<p class='subtitle'>Separare completă pe 4 canale: Voce, Bass, Tobe și Instrumente</p>", unsafe_allow_html=True)
+st.title("🎵 AI Audio Separator - Mixer Complet")
+st.markdown("<p class='subtitle'>Separare pe 4 canale: Voce, Bass, Tobe și Instrumente</p>", unsafe_allow_html=True)
 
 uploaded_file = st.file_uploader("Încarcă fișierul audio (MP3 sau WAV)", type=["mp3", "wav"])
 
@@ -48,19 +48,25 @@ if uploaded_file is not None:
         sf.write(cale_audio_intrare, data, samplerate)
 
     if st.button("🚀 Lansează Separarea pe 4 Canale"):
-        with st.spinner("Inteligența Artificială separă melodia în Voce, Bass, Tobe și Instrumente..."):
+        with st.spinner("Inteligența Artificială separă melodia în cele 4 elemente..."):
             try:
-                # Utilizăm modelul htdemucs_light conceput special pentru consum redus de resurse
-                separate.main(["-n", "htdemucs_light", cale_audio_intrare])
+                # Folosim modelul oficial htdemucs, dar adăugăm argumente care reduc masiv consumul de memorie RAM
+                separate.main([
+                    "-n", "htdemucs", 
+                    "--segment", "4",          # Împarte piesa în bucăți mici de 4 secunde pentru a nu supraîncărca RAM-ul
+                    "--shifts", "0",           # Dezactivează decalajele multiple pentru a crește viteza masiv
+                    cale_audio_intrare
+                ])
                 st.success("🎉 Separare completă!")
             except Exception as e:
-                st.error("A apărut o eroare la procesare. Încearcă din nou.")
+                st.error("A apărut o eroare la procesare.")
+                st.exception(e)
 
-    # Căile folderelor unde salvează modelul htdemucs_light
-    cale_voce = "separated/htdemucs_light/temp_input/vocals.wav"
-    cale_bas = "separated/htdemucs_light/temp_input/bass.wav"
-    cale_tobe = "separated/htdemucs_light/temp_input/drums.wav"
-    cale_altele = "separated/htdemucs_light/temp_input/other.wav"
+    # Căile oficiale unde salvează modelul htdemucs
+    cale_voce = "separated/htdemucs/temp_input/vocals.wav"
+    cale_bas = "separated/htdemucs/temp_input/bass.wav"
+    cale_tobe = "separated/htdemucs/temp_input/drums.wav"
+    cale_altele = "separated/htdemucs/temp_input/other.wav"
 
     if os.path.exists(cale_voce):
         st.write("---")
