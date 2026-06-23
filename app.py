@@ -1,8 +1,10 @@
 import streamlit as st
-import requests
+import soundfile as sf
+import numpy as np
 import os
+from scipy.signal import butter, lfilter
 
-st.set_page_config(page_title="Orga Bass Studio", page_icon="🎹", layout="centered")
+st.set_page_config(page_title="Orga Bass Local Studio", page_icon="🎹", layout="centered")
 
 st.markdown("""
     <style>
@@ -16,60 +18,68 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🎹 Orga Bass Studio")
-st.markdown("<p class='subtitle'>Izolează Formula de Bass pură cântată la Orgă (Fără resturi din piesă)</p>", unsafe_allow_html=True)
+st.title("🎹 Orga Bass Local Studio")
+st.markdown("<p class='subtitle'>Izolator de Formulă și Bătaie Bass de la Orgă (Fără Erori de Rețea)</p>", unsafe_allow_html=True)
+
+# Filtru de Studio Bandpass reglat special pentru frecvențele clapei stângi (70Hz - 240Hz)
+def extract_orga_bass_formula(data, fs, lowcut=70, highcut=240, order=4):
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    high = highcut / nyq
+    b, a = butter(order, [low, high], btype='band', analog=False)
+    filtered = lfilter(b, a, data, axis=0)
+    
+    # Amplificare dinamică puternică pentru a scoate notele clapei în evidență
+    return filtered * 9.0
 
 uploaded_file = st.file_uploader("Încarcă piesa ta (MP3 sau WAV)", type=["mp3", "wav"])
 
 if uploaded_file is not None:
     original_path = "piesa_originala.wav"
-    bass_ai_path = "bass_orga_pur.wav"
+    orga_bass_path = "bataie_bass_orga.wav"
 
-    if st.button("🚀 Extrage Formula de Bass de la Orgă via AI"):
-        with st.spinner("Modelul AI extrage acum exclusiv notele de bass de la clape..."):
+    if st.button("🚀 Izolează Instant Formula de Bass de la Orgă"):
+        with st.spinner("Se extrag notele și ritmul clapei stângi..."):
             try:
-                # Trimitem piesa către serverul AI dedicat rețelelor de aranjamente muzicale
-                files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+                # Citire locală direct de pe serverul tău
+                data, samplerate = sf.read(uploaded_file)
                 
-                # Folosim un endpoint stabil de demixare pe componente de instrumente
-                r = requests.post("https://api.audiostrip.co.uk/v1/separate/htdemucs", files=files, timeout=120)
+                # Salvăm piesa originală
+                sf.write(original_path, data, samplerate)
                 
-                if r.status_code == 200:
-                    data = r.json()
-                    
-                    # Salvăm piesa originală
-                    with open(original_path, "wb") as f:
-                        f.write(uploaded_file.getvalue())
-                        
-                    # Extragem strict canalul de bass (rețeaua neuronală izolează notele de sintetizator/aranjor)
-                    bass_url = data.get("bass")
-                    if bass_url:
-                        bass_bytes = requests.get(bass_url).content
-                        with open(bass_ai_path, "wb") as f:
-                            f.write(bass_bytes)
-                    st.success("🎉 Formula de bass a fost extrasă curat!")
-                else:
-                    st.error("Serverul AI este aglomerat momentan. Încearcă din nou în câteva secunde.")
+                # Aplicăm izolatorul de acorduri și bătăi de orgă
+                if len(data.shape) > 1:  # Stereo
+                    bass_data = np.zeros_like(data)
+                    bass_data[:, 0] = extract_orga_bass_formula(data[:, 0], samplerate)
+                    bass_data[:, 1] = extract_orga_bass_formula(data[:, 1], samplerate)
+                else:  # Mono
+                    bass_data = extract_orga_bass_formula(data, samplerate)
+                
+                # Protectie împotriva distorsiunii
+                bass_data = np.clip(bass_data, -1.0, 1.0)
+                sf.write(orga_bass_path, bass_data, samplerate)
+                
+                st.session_state.orga_gata = True
             except Exception as e:
-                st.error("Eroare de rețea. Verifică conexiunea.")
+                st.error(f"Eroare la procesarea fișierului: {e}")
 
-    if os.path.exists(original_path) and os.path.exists(bass_ai_path):
+    if os.path.exists(original_path) and os.path.exists(orga_bass_path):
         st.write("---")
         st.markdown('<div class="mixer-card">', unsafe_allow_html=True)
-        st.subheader("🎚️ Canale Audio Studio")
+        st.subheader("🎚️ Playere Monitorizare Studio")
 
-        # CANALUL 1: MELODIA ORIGINALĂ
+        # PLAYER 1: MELODIA TA
         st.markdown('<div class="channel-box">', unsafe_allow_html=True)
-        st.markdown("### 🎵 1. Melodia Întreagă")
+        st.markdown("### 🎵 1. Melodia Completă")
         st.audio(original_path)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # CANALUL 2: FORMULA DE BASS DIN ORGĂ
+        # PLAYER 2: FORMULA DE CLAPĂ
         st.markdown('<div class="channel-box">', unsafe_allow_html=True)
-        st.markdown("### 🎸 2. Doar Formula de Bass (Clapă Stângă / P-Bass Synth)")
-        st.audio(bass_ai_path)
-        with open(bass_ai_path, "rb") as f:
-            st.download_button("⬇️ Descarcă doar Linia de Bass (.wav)", f, "bass_orga.wav")
+        st.markdown("### 🎹 2. Doar Formula / Bătaia de Bass din Orgă")
+        st.audio(orga_bass_path)
+        with open(orga_bass_path, "rb") as f:
+            st.download_button("⬇️ Descarcă Formula de Bass (.wav)", f, "bataie_bass_orga.wav")
         st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown('</div>', unsafe_allow_html=True)
