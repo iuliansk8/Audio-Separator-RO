@@ -4,3 +4,4 @@ torch
 torchaudio
 demucs
 yt-dlp
+diffq
