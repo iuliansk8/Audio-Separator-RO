@@ -3,47 +3,55 @@ import soundfile as sf
 import numpy as np
 import os
 
-st.set_page_config(page_title="Orga Bass Ultra-Clean", page_icon="🎹", layout="centered")
+st.set_page_config(page_title="Pro Bass Formula Studio", page_icon="🎹", layout="centered")
 
 st.markdown("""
     <style>
     .main { background-color: #000000; color: #ffffff; }
-    .mixer-card { background-color: #1a1a1a; padding: 20px; border-radius: 15px; }
-    .stButton>button { width: 100%; background-color: #ff4b4b !important; color: white !important; font-weight: bold; }
+    .mixer-card { background-color: #1a1a1a; padding: 25px; border-radius: 15px; }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🎹 Orga Bass: Extracție „Center-Channel”")
-st.markdown("Fără filtre care bâzâie, doar separare de fază pentru bass pur.")
+st.title("🎹 Studio: Extracție Formula de Bass")
 
-uploaded_file = st.file_uploader("Încarcă melodia ta", type=["mp3", "wav"])
+uploaded_file = st.file_uploader("Încarcă melodia", type=["mp3", "wav"])
 
 if uploaded_file is not None:
-    if st.button("🚀 Extrage Basul prin Inversiune de Fază"):
-        with st.spinner("Procesez..."):
-            data, sr = sf.read(uploaded_file)
-            
-            # Dacă piesa e stereo (L, R)
-            if len(data.shape) > 1:
-                # Formula de "Center Channel Extraction" - elimină tot ce nu e în centru
-                # Asta scoate vocile și tobele de fundal și lasă linia de orgă/bass
-                left = data[:, 0]
-                right = data[:, 1]
-                mid = (left + right) / 2
-                side = (left - right) / 2
-                
-                # Păstrăm doar semnalul central "Mid" (unde stă basul de orgă)
-                # și reducem agresiv mediile/înaltele pentru a păstra doar "bătaia"
-                bass_clean = mid - (side * 0.5) 
-            else:
-                bass_clean = data
-            
-            sf.write("bass_curat.wav", bass_clean, sr)
-            st.session_state.gata = True
+    if st.button("🚀 Extrage Formula de atac (Percuție Bass)"):
+        data, sr = sf.read(uploaded_file)
+        
+        # Facem un mix mono pentru analiză
+        mono = np.mean(data, axis=1) if len(data.shape) > 1 else data
+        
+        # Detectăm "Formula" - extragem atacurile (transientii) prin derivare
+        # Asta izolează "bătaia" clapei, nu sunetul lung și bâzâit
+        formula = np.diff(mono, prepend=0)
+        formula = np.abs(formula) # Păstrăm doar atacul
+        
+        # Netezim ca să nu fie un bâzâit, ci o "lovitură" percutantă
+        from scipy.ndimage import gaussian_filter1d
+        formula = gaussian_filter1d(formula, sigma=200)
+        
+        # Normalizare și salvare
+        formula = formula / np.max(np.abs(formula))
+        sf.write("formula_bass.wav", formula, sr)
+        sf.write("original.wav", data, sr)
+        st.session_state.gata = True
 
     if "gata" in st.session_state:
-        st.markdown('<div class="mixer-card">', unsafe_allow_html=True)
-        st.audio("bass_curat.wav")
-        with open("bass_curat.wav", "rb") as f:
-            st.download_button("⬇️ Descarcă Formula de Bass Pură", f, "bass_clean.wav")
-        st.markdown('</div>', unsafe_allow_html=True)
+        # Sincronizare prin HTML - ambele playere pornesc la același "Play"
+        st.components.v1.html("""
+        <div style="background:#1a1a1a; padding:20px; border-radius:15px;">
+            <p>🎵 Melodia Originală:</p>
+            <audio id="audio1" src="https://raw.githubusercontent.com/iuliansk8/audio-separator-ro/main/original.wav" controls style="width:100%"></audio>
+            <p style="margin-top:20px;">🎹 Formula Bass (Bătaia):</p>
+            <audio id="audio2" src="https://raw.githubusercontent.com/iuliansk8/audio-separator-ro/main/formula_bass.wav" controls style="width:100%"></audio>
+            <button onclick="playAll()" style="width:100%; padding:15px; background:#10b981; border:none; color:white; font-weight:bold; cursor:pointer; margin-top:20px;">▶️ PORNEȘTE AMBELE SINCRONIZAT</button>
+        </div>
+        <script>
+            function playAll() {
+                document.getElementById('audio1').play();
+                document.getElementById('audio2').play();
+            }
+        </script>
+        """, height=300)
