@@ -42,6 +42,7 @@ metoda = st.radio("Alege sursa audio:", ("Introduce un link de YouTube", "Încar
 
 cale_audio_intrare = None
 
+# IZOLARE COMPLETĂ REPREZENTÂND SURSA SELECTATĂ
 if metoda == "Introduce un link de YouTube":
     youtube_url = st.text_input("Lipește link-ul de YouTube aici 👇", placeholder="https://www.youtube.com/watch?v=...")
     if youtube_url:
@@ -65,34 +66,35 @@ if metoda == "Introduce un link de YouTube":
                     
                     for f in os.listdir('.'):
                         if f.startswith('temp_input') and f.endswith('.wav'):
-                            cale_audio_intrare = "temp_input.wav"
+                            st.success("✅ Melodia a fost preluată!")
                             break
-                    st.success("✅ Melodia a fost preluată!")
                 except Exception as e:
                     st.error(f"Eroare YouTube: {e}")
 
-if metoda == "Încarcă fișier propriu (MP3/WAV)":
+    if os.path.exists("temp_input.wav"):
+        cale_audio_intrare = "temp_input.wav"
+
+else:
+    # Dacă este selectat fișier local, ignorăm total restul verificărilor de YouTube
     uploaded_file = st.file_uploader("Trage aici fișierul audio (MP3, WAV)", type=["mp3", "wav"])
     if uploaded_file is not None:
-        if os.path.exists("temp_input.wav"):
-            os.remove("temp_input.wav")
-        input_filename = "temp_input.wav"
-        data, samplerate = sf.read(uploaded_file)
-        sf.write(input_filename, data, samplerate)
-        cale_audio_intrare = input_filename
+        if not os.path.exists("temp_input.wav"):
+            input_filename = "temp_input.wav"
+            data, samplerate = sf.read(uploaded_file)
+            sf.write(input_filename, data, samplerate)
+        cale_audio_intrare = "temp_input.wav"
 
-if os.path.exists("temp_input.wav"):
-    if st.button("🚀 Lansează Separarea AI (Versiune Optimizată)"):
-        with st.spinner("Inteligența Artificială procesează pistele cu consum redus de memorie..."):
+# Butonul rulează doar dacă fișierul de intrare este pregătit corect
+if cale_audio_intrare and os.path.exists(cale_audio_intrare):
+    if st.button("🚀 Lansează Separarea AI"):
+        with st.spinner("Inteligența Artificială izolează pistele..."):
             try:
-                # Schimbat modelul la mdx_extra_q - consumă mult mai puțin RAM și nu mai blochează serverul
-                separate.main(["-n", "mdx_extra_q", "temp_input.wav"])
+                separate.main(["-n", "mdx_extra_q", cale_audio_intrare])
                 st.success("🎉 Separare completă!")
             except Exception as e:
                 st.error("Eroare la procesarea AI.")
                 st.exception(e)
 
-    # Căile pentru noul model mdx_extra_q
     cale_voce = "separated/mdx_extra_q/temp_input/vocals.wav"
     cale_bas = "separated/mdx_extra_q/temp_input/bass.wav"
     cale_tobe = "separated/mdx_extra_q/temp_input/drums.wav"
@@ -102,25 +104,21 @@ if os.path.exists("temp_input.wav"):
         st.write("---")
         st.subheader("🎛️ Canale Audio Separate")
 
-        # 1. CANALUL VOCE
         st.markdown('<div class="track-box"><div class="track-title">🎤 Voce (Vocals)</div></div>', unsafe_allow_html=True)
         st.audio(cale_voce)
         with open(cale_voce, "rb") as f:
             st.download_button("⬇️ Descarcă Vocea", f, "voce.wav", mime="audio/wav")
 
-        # 2. CANALUL BASS
         st.markdown('<div class="track-box"><div class="track-title">🎸 Bass</div></div>', unsafe_allow_html=True)
         st.audio(cale_bas)
         with open(cale_bas, "rb") as f:
             st.download_button("⬇️ Descarcă Bass-ul", f, "bass.wav", mime="audio/wav")
 
-        # 3. CANALUL TOBĂ
         st.markdown('<div class="track-box"><div class="track-title">🥁 Tobă (Drums)</div></div>', unsafe_allow_html=True)
         st.audio(cale_tobe)
         with open(cale_tobe, "rb") as f:
             st.download_button("⬇️ Descarcă Tobele", f, "tobe.wav", mime="audio/wav")
 
-        # 4. CANALUL INSTRUMENTE
         st.markdown('<div class="track-box"><div class="track-title">🎹 Instrumente (Melodie/Other)</div></div>', unsafe_allow_html=True)
         st.audio(cale_altele)
         with open(cale_altele, "rb") as f:
