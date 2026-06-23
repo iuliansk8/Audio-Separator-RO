@@ -23,7 +23,6 @@ torchaudio.save = _salvare_audio_simpla
 
 st.set_page_config(page_title="AI Audio Separator", page_icon="🎵", layout="centered")
 
-# Design modern, curat
 st.markdown("""
     <style>
     .main { background-color: #0f172a; color: white; }
@@ -31,13 +30,13 @@ st.markdown("""
     p.subtitle { text-align: center; color: #94a3b8; font-size: 1.1rem; }
     .stButton>button { width: 100%; background-color: #0284c7 !important; color: white !important; font-weight: bold; border-radius: 8px; border: none; padding: 12px; }
     .stButton>button:hover { background-color: #0369a1 !important; }
-    .track-box { background-color: #1e293b; padding: 15px; border-radius: 10px; margin-bottom: 15px; border-left: 5px solid #38bdf8; }
-    .track-title { font-size: 1.2rem; font-weight: bold; color: #f1f5f9; margin-bottom: 8px; }
+    .track-box { background-color: #1e293b; padding: 12px; border-radius: 8px; margin-top: 15px; margin-bottom: 5px; border-left: 5px solid #38bdf8; }
+    .track-title { font-size: 1.1rem; font-weight: bold; color: #f1f5f9; }
     </style>
 """, unsafe_allow_html=True)
 
 st.title("🎵 AI Audio Separator")
-st.markdown("<p class='subtitle'>Descarcă din YouTube sau încarcă piese, apoi separă-le pe canale!</p>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>Descarcă de pe YouTube sau încarcă piese, apoi separă instrumentele!</p>", unsafe_allow_html=True)
 
 metoda = st.radio("Alege sursa audio:", ("Introduce un link de YouTube", "Încarcă fișier propriu (MP3/WAV)"))
 
@@ -83,7 +82,7 @@ else:
 
 if cale_audio_intrare:
     if st.button("🚀 Lansează Separarea AI"):
-        with st.spinner("Inteligența Artificială izolează pistele... Poate dura 1-3 minute."):
+        with st.spinner("Inteligența Artificială izolează pistele... Vă rugăm așteptați."):
             try:
                 separate.main(["-n", "htdemucs", cale_audio_intrare])
                 st.success("🎉 Separare completă!")
@@ -99,7 +98,6 @@ if cale_audio_intrare:
     if os.path.exists(cale_voce):
         st.write("---")
         st.subheader("🎛️ Canale Audio Separate")
-        st.write("Ascultă și descarcă exact ce ai nevoie din melodie:")
 
         # 1. CANALUL VOCE
         st.markdown('<div class="track-box"><div class="track-title">🎤 Voce (Vocals)</div></div>', unsafe_allow_html=True)
@@ -119,7 +117,7 @@ if cale_audio_intrare:
         with open(cale_tobe, "rb") as f:
             st.download_button("⬇️ Descarcă Tobele", f, "tobe.wav", mime="audio/wav")
 
-        # 4. CANALUL INSTRUMENTE (Altele - pian, chitări etc.)
+        # 4. CANALUL INSTRUMENTE (Altele)
         st.markdown('<div class="track-box"><div class="track-title">🎹 Instrumente (Melodie/Other)</div></div>', unsafe_allow_html=True)
         st.audio(cale_altele)
         with open(cale_altele, "rb") as f:
