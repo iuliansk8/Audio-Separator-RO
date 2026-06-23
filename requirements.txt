@@ -1,4 +1,2 @@
 streamlit
-soundfile
-yt-dlp
-audio-separator[cpu]
+requests
